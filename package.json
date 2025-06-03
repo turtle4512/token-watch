@@ -2,10 +2,6 @@
   "name": "token-watch",
   "version": "1.0.0",
   "type": "module",
-  "dependencies": {
-    "ethers": "^6.12.0",
-    "node-fetch": "^3.3.2"
-  },
   "scripts": {
     "start": "node monitor.js"
   }
