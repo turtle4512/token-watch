@@ -37,6 +37,8 @@ provider.on(filter, async (log) => {
   });
 });
 
-provider.websocket?.addEventListener('open',  () => console.log('[Watcher] 已连接，开始监听…'));
-provider.websocket?.addEventListener('close', () => console.error('[Watcher] WS 关闭，Railway 会自动重启'));
-provider.websocket?.addEventListener('erro
+if (provider.websocket) {
+  provider.websocket.on('open',  () => console.log('[Watcher] 已连接，开始监听…'));
+  provider.websocket.on('close', () => console.error('[Watcher] WS 关闭，Railway 会自动重启'));
+  provider.websocket.on('error', (e) => console.error('[Watcher] WS error:', e.message));
+}
