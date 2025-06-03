@@ -1,10 +1,10 @@
 import { ethers } from 'ethers';
 
-/* ---------- 配置 ---------- */
+/* ---------- 基础配置 ---------- */
 const RPC_HTTP = 'https://rpc.ankr.com/bsc/713fa62df477abb027675ff45ff1187bcf6b9d9bdb6d5569f0cf91222a9e13fd';
 const TARGET   = '0x73D8bD54F7Cf5FAb43fE4Ef40A62D390644946Db'.toLowerCase();
 
-/* Telegram */
+/* Telegram Bot */
 const BOT_TOKEN = '7669259391:AAGjKiTYK56_wCIWEM7TmS0XuzQjZh4q0mg';
 const CHAT_ID   = '6773356651';
 
@@ -12,19 +12,17 @@ const CHAT_ID   = '6773356651';
 const provider = new ethers.JsonRpcProvider(RPC_HTTP);
 
 /* ---------- 轮询参数 ---------- */
-const POLL_MS   = 10_000;            // 每 10 秒查询一次
-let   lastBlock = 0n;                // bigint 保存区块号
-const seenToken = new Set();         // 已推送过的代币
-const seenTx    = new Set();         // 已推送过的交易哈希
+const POLL_MS   = 10_000;      // 10 秒
+let   lastBlock = 0n;          // bigint
+const seenToken = new Set();   // 已推送的代币
+const seenTx    = new Set();   // 已推送的 Tx
 
 /* Markdown V2 转义 */
-function esc(md) {
-  return md.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
-}
+const esc = (s) => s.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 
 /* 捕获顶层异常，防止容器直接退出 */
-process.on('uncaughtException', err => console.error('[Fatal] Uncaught:', err));
-process.on('unhandledRejection', err => console.error('[Fatal] Unhandled Promise:', err));
+process.on('uncaughtException',  e => console.error('[Fatal] Uncaught:', e));
+process.on('unhandledRejection', e => console.error('[Fatal] Unhandled:', e));
 
 /* ---------- 主循环 ---------- */
 setInterval(async () => {
@@ -36,21 +34,19 @@ setInterval(async () => {
     const paddedTarget  = ethers.zeroPadValue(TARGET, 32);
 
     const logs = await provider.getLogs({
-      fromBlock: (lastBlock + 1n).toString(),
-      toBlock  :  latest.toString(),
+      fromBlock: ethers.toQuantity(lastBlock + 1n),
+      toBlock  : ethers.toQuantity(latest),
       topics   : [transferTopic, null, paddedTarget]
     });
 
     for (const lg of logs) {
-
-      /* Tx 层去重 */
-      if (seenTx.has(lg.transactionHash)) continue;
+      if (seenTx.has(lg.transactionHash)) continue;  // Tx 去重
       seenTx.add(lg.transactionHash);
 
       const token = lg.address.toLowerCase();
-      if (seenToken.has(token)) continue;         // 同一代币仅推一次
+      if (seenToken.has(token)) continue;            // 代币去重
 
-      /* 取 symbol / decimals（可能失败 → ? / 18） */
+      /* 读 symbol / decimals */
       let symbol = '?', decimals = 18;
       try {
         const erc = new ethers.Contract(
@@ -63,10 +59,10 @@ setInterval(async () => {
         decimals = await erc.decimals();
       } catch {/* 保留默认值 */}
 
-      /* 把 data 解析成人类可读数量 */
+      /* 解析数量 */
       const amountStr = ethers.formatUnits(BigInt(lg.data), decimals);
 
-      /* 组装 Markdown V2 消息 */
+      /* 组装 Telegram 消息（Markdown V2） */
       const msg = [
         '🚨 *新币提醒*',
         `🔖 **符号**：${esc(symbol)}`,
@@ -75,7 +71,6 @@ setInterval(async () => {
         '⛔ _谨防钓鱼转账，请自行验证真伪…_'
       ].join('\n');
 
-      /* 推送到 Telegram */
       await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,10 +82,10 @@ setInterval(async () => {
       });
 
       console.log('[Watcher] 已推送', symbol);
-      seenToken.add(token);           // 标记已提醒
+      seenToken.add(token);
     }
 
-    lastBlock = latest;               // 记录最新区块
+    lastBlock = latest;  // 记录区块高度
   } catch (e) {
     console.error('[Watcher] 轮询出错：', e.message);
   }
