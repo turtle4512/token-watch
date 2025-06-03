@@ -1,44 +1,65 @@
 import { ethers } from 'ethers';
-import fetch from 'node-fetch';
+import fetch from 'node-fetch';          // Node 18 已内置，但保留更保险
 
-//============== 配置区 =================
-const RPC_WS  = process.env.RPC_WS || 'wss://bsc-ws-node.nariox.org';   // 如需换节点就改这里
-const TARGET  = '0x73D8bD54F7Cf5FAb43fE4Ef40A62D390644946Db'.toLowerCase();
+/* ===== 基本配置 ===== */
+const RPC_HTTP = process.env.RPC_HTTP   // Railway 中填写
+              || 'https://rpc.ankr.com/bsc/你的_API_KEY';   // 先填你的 Ankr HTTPS
+const TARGET   = '0x73D8bD54F7Cf5FAb43fE4Ef40A62D390644946Db'.toLowerCase();
 
+/* Telegram（已锁死） */
 const BOT_TOKEN = '7669259391:AAGjKiTYK56_wCIWEM7TmS0XuzQjZh4q0mg';
 const CHAT_ID   = '6773356651';
-//======================================
 
-// 建立 WebSocket 连接
-const provider = new ethers.JsonRpcProvider(RPC_HTTP); // 用 HTTPS
-const transferTopic = ethers.id('Transfer(address,address,uint256)');
-const paddedTarget  = ethers.zeroPadValue(TARGET, 32);
-const filter        = { topics: [transferTopic, null, paddedTarget] };
-const seen          = new Set();
+/* ===== 创建 JSON-RPC provider ===== */
+const provider = new ethers.JsonRpcProvider(RPC_HTTP);
 
-provider.on(filter, async (log) => {
-  const token = log.address.toLowerCase();
-  if (seen.has(token)) return;           // 已提醒过就跳过
-  seen.add(token);
+/* ===== 轮询参数 ===== */
+const POLL_MS     = 10_000;             // 每 10 秒查询一次
+const seenToken   = new Set();          // 已推送过的 token
+let   lastBlock   = 0;
 
-  let symbol = '?';
+/* 主循环：定时拉取新日志 */
+setInterval(async () => {
   try {
-    const erc = new ethers.Contract(token, ['function symbol() view returns (string)'], provider);
-    symbol    = await erc.symbol();
-  } catch {}
+    const latest = await provider.getBlockNumber();
+    if (lastBlock === 0) { lastBlock = latest - 1; }
 
-  const msg = `🚀 首次转入 ${symbol} (${token})\\nTx: ${log.transactionHash}`;
-  console.log(msg);
+    // 构造 Transfer 事件过滤器
+    const transferTopic = ethers.id('Transfer(address,address,uint256)');
+    const paddedTarget  = ethers.zeroPadValue(TARGET, 32);
 
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: CHAT_ID, text: msg })
-  });
-});
+    const logs = await provider.getLogs({
+      fromBlock: lastBlock + 1,
+      toBlock  : latest,
+      topics   : [transferTopic, null, paddedTarget]
+    });
 
-if (provider.websocket) {
-  provider.websocket.on('open',  () => console.log('[Watcher] 已连接，开始监听…'));
-  provider.websocket.on('close', () => console.error('[Watcher] WS 关闭，Railway 会自动重启'));
-  provider.websocket.on('error', (e) => console.error('[Watcher] WS error:', e.message));
-}
+    for (const lg of logs) {
+      const token = lg.address.toLowerCase();
+      if (seenToken.has(token)) continue;           // 只通知首次
+
+      let symbol = '?';
+      try {
+        const erc = new ethers.Contract(token, ['function symbol() view returns (string)'], provider);
+        symbol    = await erc.symbol();
+      } catch {}
+
+      const msg = `🚀 首次转入 ${symbol} (${token})\\nTx: ${lg.transactionHash}`;
+      console.log(msg);
+
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method : 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body   : JSON.stringify({ chat_id: CHAT_ID, text: msg })
+      });
+
+      seenToken.add(token);
+    }
+
+    lastBlock = latest;
+  } catch (e) {
+    console.error('[Watcher] 轮询出错：', e.message);
+  }
+}, POLL_MS);
+
+console.log('[Watcher] 轮询版已启动，每 10 秒检查一次…');
