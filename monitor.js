@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import fetch from 'node-fetch';  // Node 18 自带 fetch，但保留兼容
 
 /* ---------- 固定配置 ---------- */
 const RPC_HTTP = 'https://rpc.ankr.com/bsc/713fa62df477abb027675ff45ff1187bcf6b9d9bdb6d5569f0cf91222a9e13fd';
