@@ -10,7 +10,7 @@ const CHAT_ID   = '6773356651';
 //======================================
 
 // 建立 WebSocket 连接
-const provider      = new ethers.WebSocketProvider(RPC_WS);
+const provider = new ethers.JsonRpcProvider(RPC_HTTP); // 用 HTTPS
 const transferTopic = ethers.id('Transfer(address,address,uint256)');
 const paddedTarget  = ethers.zeroPadValue(TARGET, 32);
 const filter        = { topics: [transferTopic, null, paddedTarget] };
