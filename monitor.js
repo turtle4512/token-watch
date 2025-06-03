@@ -1,10 +1,10 @@
 import { ethers } from 'ethers';
 
-/* ---------- 基础配置 ---------- */
+/* ---------- 配置 ---------- */
 const RPC_HTTP = 'https://rpc.ankr.com/bsc/713fa62df477abb027675ff45ff1187bcf6b9d9bdb6d5569f0cf91222a9e13fd';
 const TARGET   = '0x73D8bD54F7Cf5FAb43fE4Ef40A62D390644946Db'.toLowerCase();
 
-/* Telegram Bot */
+/* Telegram */
 const BOT_TOKEN = '7669259391:AAGjKiTYK56_wCIWEM7TmS0XuzQjZh4q0mg';
 const CHAT_ID   = '6773356651';
 
@@ -14,13 +14,13 @@ const provider = new ethers.JsonRpcProvider(RPC_HTTP);
 /* ---------- 轮询参数 ---------- */
 const POLL_MS   = 10_000;      // 10 秒
 let   lastBlock = 0n;          // bigint
-const seenToken = new Set();   // 已推送的代币
-const seenTx    = new Set();   // 已推送的 Tx
+const seenToken = new Set();   // 已推送代币
+const seenTx    = new Set();   // 已推送 Tx
 
 /* Markdown V2 转义 */
 const esc = (s) => s.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 
-/* 捕获顶层异常，防止容器直接退出 */
+/* 捕获顶层异常 */
 process.on('uncaughtException',  e => console.error('[Fatal] Uncaught:', e));
 process.on('unhandledRejection', e => console.error('[Fatal] Unhandled:', e));
 
@@ -40,13 +40,13 @@ setInterval(async () => {
     });
 
     for (const lg of logs) {
-      if (seenTx.has(lg.transactionHash)) continue;  // Tx 去重
+      if (seenTx.has(lg.transactionHash)) continue;   // Tx 去重
       seenTx.add(lg.transactionHash);
 
       const token = lg.address.toLowerCase();
-      if (seenToken.has(token)) continue;            // 代币去重
+      if (seenToken.has(token)) continue;             // 代币去重
 
-      /* 读 symbol / decimals */
+      /* 读取 symbol / decimals */
       let symbol = '?', decimals = 18;
       try {
         const erc = new ethers.Contract(
@@ -57,18 +57,18 @@ setInterval(async () => {
         );
         symbol   = await erc.symbol();
         decimals = await erc.decimals();
-      } catch {/* 保留默认值 */}
+      } catch {}
 
-      /* 解析数量 */
+      /* 格式化数量 */
       const amountStr = ethers.formatUnits(BigInt(lg.data), decimals);
 
-      /* 组装 Telegram 消息（Markdown V2） */
+      /* Telegram 消息（Markdown V2） */
       const msg = [
         '🚨 *新币提醒*',
         `🔖 **符号**：${esc(symbol)}`,
         `🔗 **合约**：\`${token}\``,
         `📦 **收到数量**：${esc(amountStr)}`,
-        '⛔ _谨防钓鱼转账，请自行验证真伪…_'
+        `🔍 **Tx**：\`${lg.transactionHash}\``
       ].join('\n');
 
       await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -85,7 +85,7 @@ setInterval(async () => {
       seenToken.add(token);
     }
 
-    lastBlock = latest;  // 记录区块高度
+    lastBlock = latest;   // 记录已处理高度
   } catch (e) {
     console.error('[Watcher] 轮询出错：', e.message);
   }
