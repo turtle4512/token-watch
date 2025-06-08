@@ -19,7 +19,7 @@ const provider = new ethers.JsonRpcProvider(RPC_HTTP);
 const POLL_MS   = 10_000;
 let   lastBlock = 0n;
 const seenToken = new Set();
-const seenTx    = new Set();
+const seenLog   = new Set();
 
 /* Markdown V2 转义 */
 export const esc = (s) => s.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -48,59 +48,92 @@ async function poll(){
     const transferTopic = ethers.id('Transfer(address,address,uint256)');
     const paddedTarget  = ethers.zeroPadValue(TARGET, 32);
 
-    const logs = await provider.getLogs({
-      fromBlock: ethers.toQuantity(lastBlock + 1n),
-      toBlock  : ethers.toQuantity(latest),
-      topics   : [transferTopic, null, paddedTarget]
-    });
+    const topicSets = [
+      [null, paddedTarget],
+      [null, null, paddedTarget],
+      [null, null, null, paddedTarget]
+    ];
+
+    let logs = [];
+    for (const topics of topicSets) {
+      const part = await provider.getLogs({
+        fromBlock: ethers.toQuantity(lastBlock + 1n),
+        toBlock  : ethers.toQuantity(latest),
+        topics
+      });
+      logs.push(...part);
+    }
 
     for (const lg of logs) {
-      if (seenTx.has(lg.transactionHash)) continue;
-      seenTx.add(lg.transactionHash);
+      const logId = `${lg.transactionHash}:${lg.logIndex}`;
+      if (seenLog.has(logId)) continue;
+      seenLog.add(logId);
 
-      const token = lg.address.toLowerCase();
-      if (seenToken.has(token)) continue;
+      if (lg.topics[0] === transferTopic) {
+        const token = lg.address.toLowerCase();
+        if (seenToken.has(token)) continue;
 
-      /* 读取 symbol & decimals */
-      let symbol='?', decimals=18;
-      try{
-        const erc = new ethers.Contract(token,
-          ['function symbol() view returns (string)',
-           'function decimals() view returns (uint8)'], provider);
-        symbol   = await erc.symbol();
-        decimals = await erc.decimals();
-      }catch{/* 保留默认值 */}
+        /* 读取 symbol & decimals */
+        let symbol='?', decimals=18;
+        try{
+          const erc = new ethers.Contract(token,
+            ['function symbol() view returns (string)',
+             'function decimals() view returns (uint8)'], provider);
+          symbol   = await erc.symbol();
+          decimals = await erc.decimals();
+        }catch{/* 保留默认值 */}
 
-      /* 收到数量 */
-      const amount = ethers.formatUnits(BigInt(lg.data), decimals);
+        /* 收到数量 */
+        const amount = ethers.formatUnits(BigInt(lg.data), decimals);
+        if (Number(amount) <= 100000) continue;
 
-      /* 单价 & 总价值 */
-      const price  = await getPriceUsd(token);
-      const value  = (price !== '?' ? (Number(price)*Number(amount)).toLocaleString(undefined,{maximumFractionDigits:2}) : '?');
+        /* 单价 & 总价值 */
+        const price  = await getPriceUsd(token);
+        const value  = (price !== '?' ? (Number(price)*Number(amount)).toLocaleString(undefined,{maximumFractionDigits:2}) : '?');
 
-      /* 组装 Telegram 消息 */
-      const msg = [
-        '🚨 *新币提醒*',
-        `🔖 **符号**：${esc(symbol)}`,
-        `🔗 **代币合约**：\`${token}\``,
-        `📦 **收到数量**：${esc(amount)}`,
-        `💰 **单价**：$${price}`,
-        `💵 **价值**：$${value}`,
-        `🔍 **Tx**：\`${lg.transactionHash}\``
-      ].join('\n');
+        /* 组装 Telegram 消息 */
+        const msg = [
+          '🚨 *新币提醒*',
+          `🔖 **符号**：${esc(symbol)}`,
+          `🔗 **代币合约**：\`${token}\``,
+          `📦 **收到数量**：${esc(amount)}`,
+          `💰 **单价**：$${price}`,
+          `💵 **价值**：$${value}`,
+          `🔍 **Tx**：\`${lg.transactionHash}\``
+        ].join('\n');
 
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify({
-          chat_id   : CHAT_ID,
-          text      : msg,
-          parse_mode: 'MarkdownV2'
-        })
-      });
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify({
+            chat_id   : CHAT_ID,
+            text      : msg,
+            parse_mode: 'MarkdownV2'
+          })
+        });
 
-      console.log('[Watcher] 已推送', symbol);
-      seenToken.add(token);
+        console.log('[Watcher] 已推送', symbol);
+        seenToken.add(token);
+      } else {
+        const msg = [
+          '🚨 *事件提醒*',
+          `🔗 **合约**：\`${lg.address.toLowerCase()}\``,
+          `📝 **Topic0**：\`${lg.topics[0]}\``,
+          `🔍 **Tx**：\`${lg.transactionHash}\``
+        ].join('\n');
+
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify({
+            chat_id   : CHAT_ID,
+            text      : msg,
+            parse_mode: 'MarkdownV2'
+          })
+        });
+
+        console.log('[Watcher] 已推送事件', lg.transactionHash);
+      }
     }
 
     lastBlock = latest;
