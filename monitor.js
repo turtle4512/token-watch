@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 /* ---------- 配置 ---------- */
 const RPC_HTTP = 'https://rpc.ankr.com/bsc/713fa62df477abb027675ff45ff1187bcf6b9d9bdb6d5569f0cf91222a9e13fd';
-const TARGET   = '0x73D8bD54F7Cf5FAb43fE4Ef40A62D390644946Db'.toLowerCase();
+const TARGET   = '0x93dEb693b170d56BdDe1B0a5222B14c0F885d976'.toLowerCase();
 
 /* Telegram */
 const BOT_TOKEN = '7669259391:AAGjKiTYK56_wCIWEM7TmS0XuzQjZh4q0mg';
@@ -11,18 +11,29 @@ const CHAT_ID   = '6773356651';
 /* ---------- Provider ---------- */
 const provider = new ethers.JsonRpcProvider(RPC_HTTP);
 
-/* ---------- 轮询参数 ---------- */
-const POLL_MS   = 10_000;      // 10 秒
-let   lastBlock = 0n;          // bigint
-const seenToken = new Set();   // 已推送代币
-const seenTx    = new Set();   // 已推送 Tx
+/* ---------- 轮询 & 去重 ---------- */
+const POLL_MS   = 10_000;
+let   lastBlock = 0n;
+const seenToken = new Set();
+const seenTx    = new Set();
 
 /* Markdown V2 转义 */
 const esc = (s) => s.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 
-/* 捕获顶层异常 */
+/* 捕捉顶层异常防止容器退出 */
 process.on('uncaughtException',  e => console.error('[Fatal] Uncaught:', e));
 process.on('unhandledRejection', e => console.error('[Fatal] Unhandled:', e));
+
+/* ---------- 获取单价 ---------- */
+async function getPriceUsd(addr){
+  try{
+    const url = `https://api.dexscreener.com/latest/dex/tokens/${addr}`;
+    const res = await fetch(url).then(r=>r.json());
+    return res.pairs?.[0]?.priceUsd || '?';
+  }catch{
+    return '?';
+  }
+}
 
 /* ---------- 主循环 ---------- */
 setInterval(async () => {
@@ -40,34 +51,37 @@ setInterval(async () => {
     });
 
     for (const lg of logs) {
-      if (seenTx.has(lg.transactionHash)) continue;   // Tx 去重
+      if (seenTx.has(lg.transactionHash)) continue;
       seenTx.add(lg.transactionHash);
 
       const token = lg.address.toLowerCase();
-      if (seenToken.has(token)) continue;             // 代币去重
+      if (seenToken.has(token)) continue;
 
-      /* 读取 symbol / decimals */
-      let symbol = '?', decimals = 18;
-      try {
-        const erc = new ethers.Contract(
-          token,
+      /* 读取 symbol & decimals */
+      let symbol='?', decimals=18;
+      try{
+        const erc = new ethers.Contract(token,
           ['function symbol() view returns (string)',
-           'function decimals() view returns (uint8)'],
-          provider
-        );
+           'function decimals() view returns (uint8)'], provider);
         symbol   = await erc.symbol();
         decimals = await erc.decimals();
-      } catch {}
+      }catch{/* 保留默认值 */}
 
-      /* 格式化数量 */
-      const amountStr = ethers.formatUnits(BigInt(lg.data), decimals);
+      /* 收到数量 */
+      const amount = ethers.formatUnits(BigInt(lg.data), decimals);
 
-      /* Telegram 消息（Markdown V2） */
+      /* 单价 & 总价值 */
+      const price  = await getPriceUsd(token);
+      const value  = (price !== '?' ? (Number(price)*Number(amount)).toLocaleString(undefined,{maximumFractionDigits:2}) : '?');
+
+      /* 组装 Telegram 消息 */
       const msg = [
         '🚨 *新币提醒*',
         `🔖 **符号**：${esc(symbol)}`,
-        `🔗 **合约**：\`${token}\``,
-        `📦 **收到数量**：${esc(amountStr)}`,
+        `🔗 **代币合约**：\`${token}\``,
+        `📦 **收到数量**：${esc(amount)}`,
+        `💰 **单价**：$${price}`,
+        `💵 **价值**：$${value}`,
         `🔍 **Tx**：\`${lg.transactionHash}\``
       ].join('\n');
 
@@ -85,7 +99,7 @@ setInterval(async () => {
       seenToken.add(token);
     }
 
-    lastBlock = latest;   // 记录已处理高度
+    lastBlock = latest;
   } catch (e) {
     console.error('[Watcher] 轮询出错：', e.message);
   }
