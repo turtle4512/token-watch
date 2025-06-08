@@ -18,7 +18,7 @@ const seenToken = new Set();
 const seenTx    = new Set();
 
 /* Markdown V2 转义 */
-const esc = (s) => s.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+export const esc = (s) => s.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 
 /* 捕捉顶层异常防止容器退出 */
 process.on('uncaughtException',  e => console.error('[Fatal] Uncaught:', e));
