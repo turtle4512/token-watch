@@ -6,7 +6,7 @@
     "ethers": "^6.12.0"
   },
   "scripts": {
-    "start": "node --trace-warnings monitor.js",
+    "start": "node --trace-warnings monitor.js --once",
     "test": "node test.js"
   }
 }
