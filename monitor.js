@@ -36,7 +36,7 @@ async function getPriceUsd(addr){
 }
 
 /* ---------- 主循环 ---------- */
-setInterval(async () => {
+async function poll(){
   try {
     const latest = BigInt(await provider.getBlockNumber());
     if (lastBlock === 0n) lastBlock = latest - 1n;
@@ -102,7 +102,11 @@ setInterval(async () => {
     lastBlock = latest;
   } catch (e) {
     console.error('[Watcher] 轮询出错：', e.message);
+  } finally {
+    setTimeout(poll, POLL_MS);
   }
-}, POLL_MS);
+}
+
+poll();
 
 console.log('[Watcher] 轮询版已启动，每 10 秒检查一次…');
