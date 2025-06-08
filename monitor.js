@@ -1,5 +1,9 @@
 import { ethers } from 'ethers';
 
+/* ---------- 参数检测 ---------- */
+// 使用 --once 参数时仅轮询一次
+const runOnce = process.argv.includes('--once');
+
 /* ---------- 配置 ---------- */
 const RPC_HTTP = 'https://rpc.ankr.com/bsc/713fa62df477abb027675ff45ff1187bcf6b9d9bdb6d5569f0cf91222a9e13fd';
 const TARGET   = '0x93dEb693b170d56BdDe1B0a5222B14c0F885d976'.toLowerCase();
@@ -103,7 +107,7 @@ async function poll(){
   } catch (e) {
     console.error('[Watcher] 轮询出错：', e.message);
   } finally {
-    setTimeout(poll, POLL_MS);
+    if (!runOnce) setTimeout(poll, POLL_MS);
   }
 }
 
