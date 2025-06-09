@@ -101,8 +101,8 @@ async function poll(){
 
     for (const lg of logs) {
       const logId = `${lg.transactionHash}:${lg.logIndex}`;
-      if (seenLog.has(logId)) continue;
-      seenLog.add(logId);
+          '🔗 **代币合约**：' + esc('`' + token + '`'),
+          '🔍 **Tx**：' + esc('`' + lg.transactionHash + '`')
 
       if (lg.topics[0] === transferTopic) {
         const token = lg.address.toLowerCase();
