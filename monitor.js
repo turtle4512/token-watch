@@ -1,34 +1,42 @@
 import { ethers } from 'ethers';
 import { esc, formatTx, formatEventLog, OKLINK_TX } from './helpers.js';
 
-/* ---------- 参数 ---------- */
+/* ---------- 参数检测 ---------- */
 const runOnce = process.argv.includes('--once');
+
+/* ---------- 配置 ---------- */
 const RPC_HTTP = 'https://rpc.ankr.com/bsc/713fa62df477abb027675ff45ff1187bcf6b9d9bdb6d5569f0cf91222a9e13fd';
 const TARGET   = '0x93dEb693b170d56BdDe1B0a5222B14c0F885d976'.toLowerCase();
 
-/* ---------- Telegram ---------- */
+/* Telegram */
 const BOT_TOKEN = '7669259391:AAGjKiTYK56_wCIWEM7TmS0XuzQjZh4q0mg';
 const CHAT_ID   = '6773356651';
 
+/* ---------- Provider ---------- */
 const provider = new ethers.JsonRpcProvider(RPC_HTTP);
 
-/* ---------- 实用 ---------- */
+/* 自动补充 fetch（Node < 18） */
+if (typeof fetch === 'undefined') {
+  const { default: f } = await import('node-fetch');
+  global.fetch = f;
+}
+
+/* ---------- 工具函数 ---------- */
 async function getBlockWithTxs(bn) {
   if (provider.getBlockWithTransactions) return provider.getBlockWithTransactions(bn);
   if (provider.getBlock) return provider.getBlock(bn, true);
   return { transactions: [] };
 }
 
-/* ---------- 轮询参数 ---------- */
+/* ---------- 轮询设置 ---------- */
 const POLL_MS   = 10_000;
 let   lastBlock = 0n;
 const seenLog   = new Set();
 
-/* ---------- 错误兜底 ---------- */
 process.on('uncaughtException',  e => console.error('[Fatal] Uncaught:', e));
 process.on('unhandledRejection', e => console.error('[Fatal] Unhandled:', e));
 
-/* ---------- 取单价 ---------- */
+/* ---------- 获取单价 ---------- */
 async function getPriceUsd(addr){
   try{
     const url = `https://api.dexscreener.com/latest/dex/tokens/${addr}`;
@@ -43,7 +51,6 @@ async function poll(){
     const latest = BigInt(await provider.getBlockNumber());
     if (lastBlock === 0n) lastBlock = latest - 1n;
 
-    /* —— 扫块内 Tx —— */
     for (let bn = lastBlock + 1n; bn <= latest; bn++) {
       const blk = await getBlockWithTxs(bn);
       for (const tx of blk.transactions || []) {
@@ -57,14 +64,12 @@ async function poll(){
       }
     }
 
-    /* —— 扫 Transfer 日志 & 其它事件 —— */
     const transferTopic = ethers.id('Transfer(address,address,uint256)');
     const paddedTarget  = ethers.zeroPadValue(TARGET, 32);
 
     const topicSets = [
-      [transferTopic, null,          paddedTarget],      // to = target
-      [transferTopic, null, null,    paddedTarget],      // erc721 transfer
-      [transferTopic, null, null, null, paddedTarget]    // erc1155 transferSingle/Batch
+      [transferTopic, null, paddedTarget],           // ERC-20 / ERC-721 Transfer to target
+      [transferTopic, null, null, paddedTarget]      // ERC-1155 TransferSingle to target
     ];
 
     let logs = [];
@@ -76,24 +81,21 @@ async function poll(){
       }));
     }
 
-    /* 合约自身事件 */
     logs.push(...await provider.getLogs({
       fromBlock: ethers.toQuantity(lastBlock + 1n),
       toBlock  : ethers.toQuantity(latest),
       address  : TARGET
     }));
 
-    /* —— 处理日志 —— */
     for (const lg of logs) {
       const logId = `${lg.transactionHash}:${lg.logIndex}`;
       if (seenLog.has(logId)) continue;
       seenLog.add(logId);
 
       if (lg.topics[0] === transferTopic) {
-        /* === Transfer 逻辑 === */
         const token     = lg.address.toLowerCase();
-        const fromAddr  = '0x'+lg.topics[1].slice(26).toLowerCase();
-        const toAddr    = '0x'+lg.topics[2].slice(26).toLowerCase();
+        const fromAddr  = '0x' + lg.topics[1].slice(26).toLowerCase();
+        const toAddr    = '0x' + lg.topics[2].slice(26).toLowerCase();
 
         let symbol='?', decimals=18;
         try{
@@ -107,8 +109,7 @@ async function poll(){
 
         const amount = ethers.formatUnits(BigInt(lg.data), decimals);
         const price  = await getPriceUsd(token);
-        const value  = price==='?'? '?' :
-                       (Number(price)*Number(amount)).toLocaleString(undefined,{maximumFractionDigits:2});
+        const value  = (price !== '?' ? (Number(price)*Number(amount)).toLocaleString(undefined,{maximumFractionDigits:2}) : '?');
 
         const msg = [
           `🚨 *转账提醒*`,
@@ -125,7 +126,6 @@ async function poll(){
         await sendTg(msg);
         console.log('[Watcher] 已推送', symbol);
       } else {
-        /* 其它事件 */
         const msg = await formatEventLog(lg);
         await sendTg(msg);
         console.log('[Watcher] 已推送事件', lg.transactionHash);
@@ -140,7 +140,7 @@ async function poll(){
   }
 }
 
-/* ---------- 发送 Telegram ---------- */
+/* ---------- 推送 Telegram ---------- */
 async function sendTg(text){
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,{
     method:'POST',
