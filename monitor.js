@@ -126,12 +126,12 @@ async function poll(){
         const msg = [
           '🚨 *新币提醒*',
           `🔖 **符号**：${esc(symbol)}`,
-          `🔗 **代币合约**：\\`${token}\\``,
+          '🔗 **代币合约**：' + esc('`' + token + '`'),
           `📦 **收到数量**：${esc(amount)}`,
           `💰 **单价**：$${price}`,
           `💵 **价值**：$${value}`,
-          `🔍 **Tx**：\\`${lg.transactionHash}\\``
-        ].join('\\n');
+          '🔍 **Tx**：' + esc('`' + lg.transactionHash + '`')
+        ].join('\n');
 
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           method : 'POST',
