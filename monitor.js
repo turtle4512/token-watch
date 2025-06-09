@@ -53,7 +53,6 @@ async function poll(){
     if (lastBlock === 0n) lastBlock = latest - 1n;
 
     for (let bn = lastBlock + 1n; bn <= latest; bn++) {
-      const block = await getBlockWithTxs(bn);
       for (const tx of block.transactions) {
         if (tx.from.toLowerCase() === TARGET || (tx.to && tx.to.toLowerCase() === TARGET)) {
           const msg = formatTx(tx);
