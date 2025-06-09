@@ -55,7 +55,9 @@ async function poll(){
     for (let bn = lastBlock + 1n; bn <= latest; bn++) {
       const blk = await getBlockWithTxs(bn);
       for (const tx of blk.transactions || []) {
-        if (tx.from.toLowerCase() === TARGET || (tx.to && tx.to.toLowerCase() === TARGET)) {
+        const from = tx.from ? tx.from.toLowerCase() : '';
+        const to   = tx.to   ? tx.to.toLowerCase()   : '';
+        if (from === TARGET || to === TARGET) {
           const msg = formatTx(tx);
           await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
             method : 'POST',
