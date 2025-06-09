@@ -53,7 +53,10 @@ async function poll(){
     if (lastBlock === 0n) lastBlock = latest - 1n;
 
     for (let bn = lastBlock + 1n; bn <= latest; bn++) {
-      for (const tx of block.transactions) {
+     7za0mg-codex/remove-token-filter-and-notify-telegram
+      const blk = await getBlockWithTxs(bn);
+      for (const tx of blk.transactions || []) {
+      main
         if (tx.from.toLowerCase() === TARGET || (tx.to && tx.to.toLowerCase() === TARGET)) {
           const msg = formatTx(tx);
           await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
