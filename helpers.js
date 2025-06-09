@@ -1,14 +1,16 @@
 import { ethers } from 'ethers';
 
+export const OKLINK_TX = 'https://www.oklink.com/zh-hans/bsc/tx/';
+
 export const esc = (s) => s.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 
 export function formatTx(tx) {
   return [
     `🚨 *交易提醒*`,
-    `📤 **From**：\`${tx.from ? tx.from.toLowerCase() : '(null)'}\``,
-    `📥 **To**：\`${tx.to ? tx.to.toLowerCase() : '(null)'}\``,
+    `📤 **From**：${esc(tx.from ? tx.from.toLowerCase() : '(null)')}`,
+    `📥 **To**：${esc(tx.to ? tx.to.toLowerCase() : '(null)')}`,
     `💸 **Value**：${esc(ethers.formatUnits(tx.value, 18))}`,
-    `🔍 **Tx**：\`${tx.hash}\``
+    `🔍 **Tx**：[${esc(tx.hash)}](${OKLINK_TX}${tx.hash})`
   ].join('\n');
 }
 
@@ -27,9 +29,9 @@ export async function formatEventLog(log) {
   if (!sig) {
     return [
       `🚨 *事件提醒*`,
-      `🔗 **合约**：${esc(`\`${log.address.toLowerCase()}\``)}`,
-      `📝 **Topic0**：${esc(`\`${log.topics[0]}\``)}`,
-      `🔍 **Tx**：${esc(`\`${log.transactionHash}\``)}`
+      `🔗 **合约**：${esc(log.address.toLowerCase())}`,
+      `📝 **Topic0**：${esc(log.topics[0])}`,
+      `🔍 **Tx**：[${esc(log.transactionHash)}](${OKLINK_TX}${log.transactionHash})`
     ].join('\n');
   }
 
@@ -47,17 +49,17 @@ export async function formatEventLog(log) {
 
     return [
       `🚨 *事件提醒*`,
-      `🔗 **合约**：${esc(`\`${log.address.toLowerCase()}\``)}`,
+      `🔗 **合约**：${esc(log.address.toLowerCase())}`,
       `📝 **事件**：${esc(sig)}`,
       ...args,
-      `🔍 **Tx**：${esc(`\`${log.transactionHash}\``)}`
+      `🔍 **Tx**：[${esc(log.transactionHash)}](${OKLINK_TX}${log.transactionHash})`
     ].join('\n');
   } catch {
     return [
       `🚨 *事件提醒*`,
-      `🔗 **合约**：${esc(`\`${log.address.toLowerCase()}\``)}`,
+      `🔗 **合约**：${esc(log.address.toLowerCase())}`,
       `📝 **事件**：${esc(sig)}`,
-      `🔍 **Tx**：${esc(`\`${log.transactionHash}\``)}`
+      `🔍 **Tx**：[${esc(log.transactionHash)}](${OKLINK_TX}${log.transactionHash})`
     ].join('\n');
   }
 }

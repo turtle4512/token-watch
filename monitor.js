@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { esc, formatTx, formatEventLog } from './helpers.js';
+import { esc, formatTx, formatEventLog, OKLINK_TX } from './helpers.js';
 
 /* ---------- 参数检测 ---------- */
 // 使用 --once 参数时仅轮询一次
@@ -131,13 +131,13 @@ async function poll(){
         const msg = [
           `🚨 *转账提醒*`,
           `🔖 **符号**：${esc(symbol)}`,
-          `🔗 **代币合约**：${esc(`\`${token}\``)}`,
-          `📤 **From**：${esc(`\`${fromAddr}\``)}`,
-          `📥 **To**：${esc(`\`${toAddr}\``)}`,
+          `🔗 **代币合约**：${esc(token)}`,
+          `📤 **From**：${esc(fromAddr)}`,
+          `📥 **To**：${esc(toAddr)}`,
           `📦 **数量**：${esc(amount)}`,
           `💰 **单价**：$${price}`,
           `💵 **价值**：$${value}`,
-          `🔍 **Tx**：${esc(`\`${lg.transactionHash}\``)}`
+          `🔍 **Tx**：[${esc(lg.transactionHash)}](${OKLINK_TX}${lg.transactionHash})`
         ].join('\n');
 
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
