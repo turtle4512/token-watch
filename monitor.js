@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { esc, formatTx } from './helpers.js';
+import { esc, formatTx, formatEventLog } from './helpers.js';
 
 /* ---------- 参数检测 ---------- */
 // 使用 --once 参数时仅轮询一次
@@ -107,6 +107,9 @@ async function poll(){
       if (lg.topics[0] === transferTopic) {
         const token = lg.address.toLowerCase();
 
+        const fromAddr = '0x' + lg.topics[1].slice(26).toLowerCase();
+        const toAddr   = '0x' + lg.topics[2].slice(26).toLowerCase();
+
         /* 读取 symbol & decimals */
         let symbol='?', decimals=18;
         try{
@@ -126,13 +129,15 @@ async function poll(){
 
         /* 组装 Telegram 消息 */
         const msg = [
-          '🚨 *新币提醒*',
+          `🚨 *转账提醒*`,
           `🔖 **符号**：${esc(symbol)}`,
-          '🔗 **代币合约**：' + esc('`' + token + '`'),
-          `📦 **收到数量**：${esc(amount)}`,
+          `🔗 **代币合约**：${esc(`\`${token}\``)}`,
+          `📤 **From**：${esc(`\`${fromAddr}\``)}`,
+          `📥 **To**：${esc(`\`${toAddr}\``)}`,
+          `📦 **数量**：${esc(amount)}`,
           `💰 **单价**：$${price}`,
           `💵 **价值**：$${value}`,
-          '🔍 **Tx**：' + esc('`' + lg.transactionHash + '`')
+          `🔍 **Tx**：${esc(`\`${lg.transactionHash}\``)}`
         ].join('\n');
 
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -147,12 +152,7 @@ async function poll(){
 
         console.log('[Watcher] 已推送', symbol);
       } else {
-        const msg = [
-          '🚨 *事件提醒*',
-          '🔗 **合约**：' + esc('`' + lg.address.toLowerCase() + '`'),
-          '📝 **Topic0**：' + esc('`' + lg.topics[0] + '`'),
-          '🔍 **Tx**：' + esc('`' + lg.transactionHash + '`')
-        ].join('\n');
+        const msg = await formatEventLog(lg);
 
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           method : 'POST',
