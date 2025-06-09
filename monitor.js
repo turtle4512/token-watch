@@ -53,10 +53,8 @@ async function poll(){
     if (lastBlock === 0n) lastBlock = latest - 1n;
 
     for (let bn = lastBlock + 1n; bn <= latest; bn++) {
-     7za0mg-codex/remove-token-filter-and-notify-telegram
       const blk = await getBlockWithTxs(bn);
       for (const tx of blk.transactions || []) {
-      main
         if (tx.from.toLowerCase() === TARGET || (tx.to && tx.to.toLowerCase() === TARGET)) {
           const msg = formatTx(tx);
           await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -128,12 +126,12 @@ async function poll(){
         const msg = [
           '🚨 *新币提醒*',
           `🔖 **符号**：${esc(symbol)}`,
-          `🔗 **代币合约**：\`${token}\``,
+          `🔗 **代币合约**：\\`${token}\\``,
           `📦 **收到数量**：${esc(amount)}`,
           `💰 **单价**：$${price}`,
           `💵 **价值**：$${value}`,
-          `🔍 **Tx**：\`${lg.transactionHash}\``
-        ].join('\n');
+          `🔍 **Tx**：\\`${lg.transactionHash}\\``
+        ].join('\\n');
 
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           method : 'POST',
@@ -149,10 +147,10 @@ async function poll(){
       } else {
         const msg = [
           '🚨 *事件提醒*',
-          `🔗 **合约**：\`${lg.address.toLowerCase()}\``,
-          `📝 **Topic0**：\`${lg.topics[0]}\``,
-          `🔍 **Tx**：\`${lg.transactionHash}\``
-        ].join('\n');
+          `🔗 **合约**：\\`${lg.address.toLowerCase()}\\``,
+          `📝 **Topic0**：\\`${lg.topics[0]}\\``,
+          `🔍 **Tx**：\\`${lg.transactionHash}\\``
+        ].join('\\n');
 
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           method : 'POST',
