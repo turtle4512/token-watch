@@ -147,10 +147,10 @@ async function poll(){
       } else {
         const msg = [
           '🚨 *事件提醒*',
-          `🔗 **合约**：\\`${lg.address.toLowerCase()}\\``,
-          `📝 **Topic0**：\\`${lg.topics[0]}\\``,
-          `🔍 **Tx**：\\`${lg.transactionHash}\\``
-        ].join('\\n');
+          '🔗 **合约**：' + esc('`' + lg.address.toLowerCase() + '`'),
+          '📝 **Topic0**：' + esc('`' + lg.topics[0] + '`'),
+          '🔍 **Tx**：' + esc('`' + lg.transactionHash + '`')
+        ].join('\n');
 
         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
           method : 'POST',
