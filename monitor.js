@@ -16,6 +16,16 @@ const CHAT_ID   = '6773356651';
 /* ---------- Provider ---------- */
 const provider = new ethers.JsonRpcProvider(RPC_HTTP);
 
+async function getBlockWithTxs(bn) {
+  if (typeof provider.getBlockWithTransactions === 'function') {
+    return await provider.getBlockWithTransactions(bn);
+  }
+  if (typeof provider.getBlock === 'function') {
+    return await provider.getBlock(bn, true);
+  }
+  return { transactions: [] };
+}
+
 /* ---------- 轮询 & 去重 ---------- */
 const POLL_MS   = 10_000;
 let   lastBlock = 0n;
@@ -43,7 +53,6 @@ async function poll(){
     if (lastBlock === 0n) lastBlock = latest - 1n;
 
     for (let bn = lastBlock + 1n; bn <= latest; bn++) {
-      const block = await provider.getBlockWithTransactions(bn);
       for (const tx of block.transactions) {
         if (tx.from.toLowerCase() === TARGET || (tx.to && tx.to.toLowerCase() === TARGET)) {
           const msg = formatTx(tx);
